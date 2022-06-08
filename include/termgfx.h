@@ -448,11 +448,31 @@ tg_render(tgRenderer *r)
       if (*front_ch != back_ch)
       {
         if (cur.x != x) tg__set_cursor(pos);
-        
-        uint8_t ch[4];
-        uint8_t ch_len = tg__encode(back_ch, ch);
-        fprintf(stdout, "%.*s", ch_len, (char *)ch);
-        *front_ch = back_ch;
+
+        if (0 == back_ch) 
+        {
+          // We've got to clear the old character on the terminal,
+          // however, if theres a current background color active
+          // the space will be colored, so we have to reset the space
+          // char and then restore the foreground and background color.
+          if (TG_RESET != cur_attribs.bg) 
+            fprintf(
+              stdout, 
+              "%s %s%s", 
+              tg_background_str(TG_RESET), 
+              tg_foreground_str(cur_attribs.fg),
+              tg_background_str(cur_attribs.bg)
+            );
+          else fputc(' ', stdout);
+        } 
+        else
+        {
+          uint8_t ch[4];
+          uint8_t ch_len = tg__encode(back_ch, ch);
+          fprintf(stdout, "%.*s", ch_len, (char *)ch);
+          *front_ch = back_ch;
+        }
+
         cur.x = x + 1;
       }
     }
