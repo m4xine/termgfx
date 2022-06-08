@@ -1,0 +1,6 @@
+#ifndef TERMGFX_TERMGFX_H
+#define TERMGFX_TERMGFX_H
+
+
+
+#endif // TERMGFX_TERMGFX_H

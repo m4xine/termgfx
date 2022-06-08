@@ -1,0 +1,1 @@
+gcc -oexamples/hello-world.o examples/hello-world.c -Iinclude -std=c99 
