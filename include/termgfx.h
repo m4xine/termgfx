@@ -2,6 +2,7 @@
 //       if they're the same - dont render.
 // TODO: Before rendering, get the terminal window
 //       size and resize the front/back buffers.
+// TODO: Add assertions and bounds checking.
 
 #ifndef TERMGFX_TERMGFX_H
 #define TERMGFX_TERMGFX_H
@@ -11,9 +12,27 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <string.h>
+#include <assert.h>
 #include <stdbool.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+
+#define TG__MAX(x, y) ((x) > (y) ? (x) : (y))
+#define TG__MIN(x, y) ((x) < (y) ? (x) : (y))
+
+typedef struct
+{
+  int16_t x, y;
+} tgVec2;
+
+#define TG_VEC2(x_, y_) ((tgVec2) { .x = (x_), .y = (y_) })
+
+typedef struct
+{
+  int16_t x, y, w, h;
+} tgRect;
+
+#define TG_RECT(x_, y_, w_, h_) ((tgRect) { .x = (x_), .y = (y_), .w = (w_), .h = (h_) })
 
 uint8_t
 tg__char_size(int32_t c)
@@ -87,9 +106,9 @@ tg__show_cursor(void)
 // Sets the cursor position.
 // NOTE: This does not flush stdout!
 void
-tg__set_cursor(uint16_t x, uint16_t y)
+tg__set_cursor(tgVec2 p)
 {
-  fprintf(stdout, "\e[%hu;%huH", y + 1, x + 1);
+  fprintf(stdout, "\e[%hu;%huH", p.y + 1, p.x + 1);
 }
 
 // Terminal state.
@@ -283,23 +302,21 @@ tg_attribs_cmp(tgAttribs const *l, tgAttribs *r)
 // 2D Buffer containing glyphs and glyph attribtues. 
 typedef struct
 {
-  uint16_t   w, 
-             h;
-  int32_t   *glyphs;  // w * h 
-  tgAttribs *attribs; // w * h
+  tgVec2     size;
+  int32_t   *glyphs;  // size.x * size.y
+  tgAttribs *attribs; // size.x * size.y
 } tgBuffer;
 
 // `tgBuffer` constructor.
 // Creates a 2d buffer with the specified width and height.
 tgBuffer
-tg_buffer(uint16_t w, uint16_t h)
+tg_buffer(tgVec2 size)
 {
   return (tgBuffer)
     {
-      .w       = w,
-      .h       = h,
-      .glyphs  = (int32_t *)calloc(w * h, sizeof(int32_t)),
-      .attribs = (tgAttribs *)calloc(w * h, sizeof(tgAttribs))
+      .size = size,
+      .glyphs  = (int32_t *)calloc(size.x * size.y, sizeof(int32_t)),
+      .attribs = (tgAttribs *)calloc(size.x * size.y, sizeof(tgAttribs))
     };
 }
 
@@ -316,26 +333,26 @@ tg_buffer_del(tgBuffer *b)
 // and y coordinates.
 // NOTE: This does not do out of bounds checks.
 int32_t *
-tg_buffer_glyph_at(tgBuffer *b, uint16_t x, uint16_t y)
+tg_buffer_glyph_at(tgBuffer *b, tgVec2 p)
 {
-  return &b->glyphs[x * b->h + y];
+  return &b->glyphs[p.x * b->size.y + p.y];
 }
 
 // Retrieves the glyph attributes in a `tgBuffer` at the 
 // specified x and y coordinates.
 // NOTE: This does not do out of bounds checks.
 tgAttribs *
-tg_buffer_attribs_at(tgBuffer *b, uint16_t x, uint16_t y)
+tg_buffer_attribs_at(tgBuffer *b, tgVec2 p)
 {
-  return &b->attribs[x * b->h + y];
+  return &b->attribs[p.x * b->size.y + p.y];
 }
 
 // Clears the contents of a `tgBuffer`.
 void
 tg_buffer_clear(tgBuffer *b)
 {
-  memset((void *)b->glyphs, 0, sizeof(int32_t) * b->w * b->h);
-  memset((void *)b->attribs, 0, sizeof(tgAttribs) * b->w * b->h);
+  memset((void *)b->glyphs, 0, sizeof(int32_t) * b->size.x * b->size.y);
+  memset((void *)b->attribs, 0, sizeof(tgAttribs) * b->size.x * b->size.y);
 }
 
 // Terminal renderer state.
@@ -343,11 +360,11 @@ typedef struct
 {
   tgTerm *term;
   tgBuffer front, back; 
-  uint16_t cursor_x, cursor_y; 
+  tgVec2 cursor; 
 } tgRenderer;
 
 void 
-tg__renderer_set_cursor(tgRenderer *, uint16_t, uint16_t);
+tg__renderer_set_cursor(tgRenderer *, tgVec2);
 
 // `tgRenderer` constructor.
 // NOTE: This flushes to stdout and resets the cursor position.
@@ -358,14 +375,13 @@ tg_renderer(tgTerm *t)
 
   tgRenderer r = (tgRenderer)
     {
-      .term     = t,
-      .front    = tg_buffer(t->winsize.ws_col, t->winsize.ws_row),
-      .back     = tg_buffer(t->winsize.ws_col, t->winsize.ws_row),
-      .cursor_x = 0,
-      .cursor_y = 0
+      .term   = t,
+      .front  = tg_buffer(TG_VEC2(t->winsize.ws_col, t->winsize.ws_row)),
+      .back   = tg_buffer(TG_VEC2(t->winsize.ws_col, t->winsize.ws_row)),
+      .cursor = TG_VEC2(0, 0)
     };
   
-  tg__set_cursor(0, 0);
+  tg__set_cursor(TG_VEC2(0, 0));
   tg__flush();
 
   return r;
@@ -387,10 +403,8 @@ void
 tg_render(tgRenderer *r)
 {
   tg__hide_cursor();
-  uint16_t old_cursor_x = r->cursor_x,
-           old_cursor_y = r->cursor_y; 
-  uint16_t  cur_x = 0,
-            cur_y = 0;
+  tgVec2 old_cursor = r->cursor; 
+  tgVec2 cur = TG_VEC2(0, 0);
 
   fprintf(
     stdout, 
@@ -400,14 +414,16 @@ tg_render(tgRenderer *r)
   );
   tgAttribs cur_attribs = tg_attribs(TG_RESET, TG_RESET);
 
-  for (uint16_t y = 0; y < r->front.h; ++y)
+  for (int16_t y = 0; y < r->front.size.y; ++y)
   {
-    for (uint16_t x = 0; x < r->front.w; ++x)
+    for (int16_t x = 0; x < r->front.size.x; ++x)
     {
-      int32_t    back_ch    = *tg_buffer_glyph_at(&r->back, x, y),
-                *front_ch   =  tg_buffer_glyph_at(&r->front, x, y);
-      tgAttribs  back_attr  = *tg_buffer_attribs_at(&r->back, x, y);
-      tgAttribs *front_attr =  tg_buffer_attribs_at(&r->front, x, y);
+      tgVec2 pos = TG_VEC2(x, y);
+
+      int32_t    back_ch    = *tg_buffer_glyph_at(&r->back, pos),
+                *front_ch   =  tg_buffer_glyph_at(&r->front, pos);
+      tgAttribs  back_attr  = *tg_buffer_attribs_at(&r->back, pos);
+      tgAttribs *front_attr =  tg_buffer_attribs_at(&r->front, pos);
 
       if (!tg_attribs_cmp(front_attr, &back_attr) 
        || !tg_attribs_cmp(&back_attr, &cur_attribs))
@@ -431,29 +447,27 @@ tg_render(tgRenderer *r)
 
       if (*front_ch != back_ch)
       {
-        if (cur_x != x)
-        {
-          tg__set_cursor(x, y);
-          cur_x = x;
-        }
+        if (cur.x != x) tg__set_cursor(pos);
         
         uint8_t ch[4];
         uint8_t ch_len = tg__encode(back_ch, ch);
         fprintf(stdout, "%.*s", ch_len, (char *)ch);
         *front_ch = back_ch;
-        cur_x = x + 1;
+        cur.x = x + 1;
       }
     }
 
-    cur_x = 0;
-    ++cur_y;
-    tg__set_cursor(cur_x, cur_y);
+    cur.x = 0;
+    ++cur.y;
+    tg__set_cursor(cur);
   }
 
-  tg__set_cursor(old_cursor_x, old_cursor_y);
+  tg__set_cursor(old_cursor);
   tg__show_cursor();
   tg__flush();
   tg_buffer_clear(&r->back);
 }
+
+#undef TG__MAX
 
 #endif // TERMGFX_TERMGFX_H
