@@ -398,11 +398,7 @@ tg_render(tgRenderer *r)
     tg_foreground_str(TG_RESET), 
     tg_background_str(TG_RESET)
   );
-  tgAttribs cur_attribs = (tgAttribs)
-    {
-      .fg = TG_RESET,
-      .bg = TG_RESET,
-    };
+  tgAttribs cur_attribs = tg_attribs(TG_RESET, TG_RESET);
 
   for (uint16_t y = 0; y < r->front.h; ++y)
   {
