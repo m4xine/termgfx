@@ -1,1 +1,1 @@
-gcc -oexamples/hello-world.o examples/hello-world.c -Iinclude -std=c99 
+gcc -oexamples/ball.o examples/ball.c -Iinclude -std=c99 
