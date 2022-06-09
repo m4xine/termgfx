@@ -27,6 +27,12 @@ typedef struct
 
 #define TG_VEC2(x_, y_) ((tgVec2) { .x = (x_), .y = (y_) })
 
+tgVec2
+tg_vec2_add(tgVec2 a, tgVec2 b)
+{
+  return TG_VEC2(a.x + b.x, a.y + b.y);
+}
+
 typedef struct
 {
   int16_t x, y, w, h;
