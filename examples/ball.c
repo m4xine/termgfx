@@ -1,6 +1,8 @@
+#define _XOPEN_SOURCE 600
 #include <termgfx.h>
 
-int main(void)
+int 
+main(void)
 {
   tgTerm t = tg_term();
   tg_raw_mode(&t);
