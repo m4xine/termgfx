@@ -1,1 +1,4 @@
-gcc -oexamples/ball.o examples/ball.c -Iinclude -std=c99 
+for i in examples/*.c; do
+  [ -f "$i" ] || break
+  gcc -o"${i%.c}.o" $i -Iinclude -std=c99
+done
