@@ -361,6 +361,28 @@ tg_buffer_clear(tgBuffer *b)
   memset((void *)b->attribs, 0, sizeof(tgAttribs) * b->size.x * b->size.y);
 }
 
+void
+tg_buffer_blit(tgBuffer       *dst,
+               tgBuffer const *src,
+               tgRect   const *dst_rect,
+               tgRect   const *src_rect)
+{
+  // TODO: Actually calculate rect intersections
+
+  int16_t min_w = TG__MIN(dst_rect->w, src_rect->w),
+          min_h = TG__MIN(dst_rect->h, src_rect->h);
+
+  for (int16_t x = 0; x < min_w; ++x)
+    for (int16_t y = 0; y < min_h; ++y)
+    {
+      *tg_buffer_glyph_at(dst, TG_VEC2(dst_rect->x + x, dst_rect->y + y)) = 
+        *tg_buffer_glyph_at((tgBuffer *)src, TG_VEC2(src_rect->x + x, src_rect->y + y));
+
+      *tg_buffer_attribs_at(dst, TG_VEC2(dst_rect->x + x, dst_rect->y + y)) = 
+        *tg_buffer_attribs_at((tgBuffer *)src, TG_VEC2(src_rect->x + x, src_rect->y + y));
+    }
+}
+
 // Terminal renderer state.
 typedef struct
 {
