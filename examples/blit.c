@@ -16,8 +16,13 @@ main(void)
     for (int16_t y = 0; y < 10; ++y)
     {
       if (x < 10 && y < 5)
+      {
         *tg_buffer_glyph_at(&buf2, TG_VEC2(x, y)) = 'B';
+        *tg_buffer_attribs_at(&buf2, TG_VEC2(x, y)) = tg_attribs(TG_RESET, TG_RED);
+      }
+      
       *tg_buffer_glyph_at(&buf1, TG_VEC2(x, y)) = 'A';
+      *tg_buffer_attribs_at(&buf1, TG_VEC2(x, y)) = tg_attribs(TG_RESET, TG_BLUE);
     }
 
   tg_buffer_blit(
